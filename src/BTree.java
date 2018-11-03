@@ -156,15 +156,18 @@ class BTNode implements Comparable<BTNode>{
 public class BTree {
     private BTNode root ;
     private  int t ;//最小度数，例如t==2时，关键字个数可以为2-3-4,称为2-3-4B树
-    public void BTreeCreate(int t){
-        this.t = t ;
-        root = new BTNode(t);
+    public void BTreeCreate(int t) {
+        if (root == null){
+            this.t = t;
+             root = new BTNode(t);
+      }
     }
     public void BTreeCreate(){
         BTreeCreate(2);
     }
     public void  btreeSplitChild(BTNode x , int i){
         BTNode z = new BTNode(t);
+        z.setLeaf(false);
         BTNode y = x.getChildItem(i); //找到x节点第i+1个孩子指针
         z.n = t-1; //修改z的孩子个数
         for(int j = 0 ; j < t-1 ; j++){
@@ -189,10 +192,89 @@ public class BTree {
     private BTree(){
 
     }
+    public void btreeInsert(DiskValue k ){
+        BTNode r = this.root ;
+        if(r.n == 2*this.t-1){
+            BTNode btNode = new BTNode(this.t);
+            this.root = btNode;
+            this.root.setLeaf(false);
+            this.root.setChildNode(0 , r);
+            this.btreeSplitChild(this.root , 0);//根节点没有父母节点，但是可以假定根节点默认是父母节点的下标为0的
+                                                    // 满子节点
+            this.btreeInsertNonfull(this.root , k);
+        }else{
+            this.btreeInsertNonfull(this.root , k);
+        }
+    }
+    public void btreeInsertNonfull(BTNode x , DiskValue k ){//将关键字插入,核心部分
+        int i = x.n-1 ;
+        if(x.isLeaf()){
+            while( i >0 && k.getKey() < x.getNodeKey(i).getKey()){ // x.key(i+1) < x.key(i)
+                x.setKeyNode(i , x.getNodeKey(i-1));
+                i--;
+            }
+            x.setKeyNode(i , k);
+            x.n++ ;
+        }else{
+            while( i>= 0 && k.getKey() < x.getNodeKey(i).getKey()){
+                i--;
+            }
+            i = i + 1 ;
+            if(x.getChildItem(i).getChildCounts() == 2*t-1){
+                this.btreeSplitChild(x , i );
+                if(k.compareTo(x.getNodeKey(i))>0){//经过分裂，x.key(i)是新移上来的值，需要与key及进行比较，
+                                                    // 确定向哪个子树下移
+                    i = i+1;
+                }
+                btreeInsertNonfull(x.getChildItem(i) , k); //尾递归,可以通过while循环实现
+            }
+        }
+
+    }
+    public DiskValue btreeSearch(BTNode x , int k ){ // b树查找，可以看到时间复杂度非常低O(tlogt(h))
+        int i = 0 ;
+        while( i < x.n && k > x.getNodeKey(i).getKey()){
+            i++;
+        }
+        if(i < x.n && k== x.getNodeKey(i).getKey()){
+            return x.getNodeKey(i);
+        }else{
+            if(x.isLeaf()){
+                return null ;
+            }else{
+                btreeSearch(x.getChildItem(i),k);
+            }
+        }
+        return null ;
+    }
     public static BTree getInstance(){
         BTree tree  =new BTree();
         tree.BTreeCreate(4);
         return tree ;
+    }
+    public void traverse(BTNode x){
+        int i = 0 ;
+        while(i < x.n){
+            System.out.print(x.getNodeKey(i).getKey()+ " ");
+        }
+        System.out.println();
+        if(x.isLeaf()){
+            return ;
+        }
+        for(int j = 0 ; j <x.n+1;j++){
+            traverse(x.getChildItem(j));
+        }
+    }
+    public void traverse(){
+        this.traverse(this.root);
+    }
+    public static void main(String args){
+        BTree bTree = BTree.getInstance();
+        bTree.BTreeCreate();
+        bTree.btreeInsert(new DiskValue(10,10));
+        bTree.btreeInsert(new DiskValue(20,20));
+        bTree.traverse();
+
     }
 
 }

@@ -307,23 +307,34 @@ public class BTree {
                         x.setKeyNode(i, dv);
                         btreeDelete(postNode, dv.getKey());
                     } else {
-                        //delete k from the x node
+                        //append the k key word to the tail of k's child node y,and then append the z node to the
+                        // tail of the x node ,lastly recursively delete the k  in the y node
+
+                        //delete the k from the x node
                         DiskValue keyToDelete = x.getNodeKey(i);
+                        // ajust the key word in the x node
                         for (int q = i; q < x.getKeyCounts() - 1; q++) {
                             x.setKeyNode(i, x.getNodeKey(i + 1));
                         }
+                        // ajust  the childnode pointer in the x node
                         for (int q = i; q < x.getChildCounts() - 1; q++) {
                             x.setChildNode(i, x.getChildItem(i + 1));
                         }
+                        // update the size of the x node
                         x.n--;
+                        // current index of the y node
                         int curIndex = previousNode.n;
+                        // update the size of the y node
                         previousNode.n++ ;
+                        //apend the k  to be deleted  to the tail of the y node
                         previousNode.setKeyNode(curIndex, keyToDelete);
-                        // append the key deleted to the tail of the preivous node
+                        // calculate the size of the y node (= previous node )
                         int nLength = previousNode.getKeyCounts() + postNode.getKeyCounts()+1;
                         //merge the key of the postnode into the previousNode
-                        int childIndex = previousNode.getChildCounts();
-                        for (int k = previousNode.getKeyCounts(), pindex = 0; k < nLength; k++, pindex++) {
+                        int childIndex = previousNode.getChildCounts() -1 ;
+
+                        // merge the y (left child) node and the z node (right child or named postNode)
+                        for (int k = previousNode.getKeyCounts()-1, pindex = 0; k < nLength; k++, pindex++) {
                             previousNode.n++ ;
                             previousNode.setKeyNode(k, postNode.getNodeKey(pindex));
                         }
@@ -332,11 +343,13 @@ public class BTree {
                         for(int q = childIndex ,z = 0 ; z< postNode.getChildCounts() ; z++){
                                 previousNode.setChildNode(q , postNode.getChildItem(z));
                         }
-                        btreeDelete( previousNode , key);//recursively delete the key node in childnode previouseNode
+                        //recursively delete the key node in childnode previouseNode
+                        btreeDelete( previousNode , key);
                     }
                 }
             }
         } else if (i >= x.getKeyCounts()) {// key isn't in current node
+
         }
     }
 

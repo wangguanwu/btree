@@ -282,11 +282,12 @@ public class BTree {
         }
         for (i = 0; i < x.getKeyCounts(); i++) { //to-do可以用二分法查找
             DiskValue bt = x.getNodeKey(i);
-            if (bt.getKey() == key) {
+            if (bt.getKey() == key || bt.getKey() > key ) {
+
                 break;
             }
         }
-        if (i < x.getKeyCounts()) { // key is in current node
+        if (i < x.getKeyCounts() && key ==x.getNodeKey(i).getKey() ) { // key is in current node
             if (x.isLeaf()) { // if current node is leaf ,we can delete the node directly
                 for (int j = i; j < x.getKeyCounts() - 1; j++) {
                     x.setKeyNode(j, x.getNodeKey(j + 1));//x.key(i) = x.key(i+1);
@@ -348,7 +349,36 @@ public class BTree {
                     }
                 }
             }
-        } else if (i >= x.getKeyCounts()) {// key isn't in current node
+        } else {// key isn't in current node
+            DiskValue dk = x.getNodeKey(i);
+            BTNode left = x.getChildItem(i) ,right = x.getChildItem(i+1);
+
+            if( x.getKeyCounts() == t-1 ){
+                BTNode mergeNode = left ,anotherChild = right ;
+                if(left.getKeyCounts() != t-1){
+                    if(right.getKeyCounts() == t-1){
+                        mergeNode = right;
+                        anotherChild = left ;
+                    }else {
+                        mergeNode = null ;
+                        anotherChild = null ;
+                    }
+                }
+                if( mergeNode!=null&&anotherChild.getKeyCounts()>=t){// brother node has at least t key words
+                    // movedown the x.ci to the  tail of the mergeNode
+                    mergeNode.n++;
+                    mergeNode.setChildNode();
+
+                }
+                //case a: x.ci just has t-1 key words ,but it's  child node(including left child and
+                // right child)  have at least t key words
+
+                if(x.getKeyCounts() == 1){// delete the root node becuase it just has only a key word
+                    this.root = left;
+                }
+            }else{
+                //case b:
+            }
 
         }
     }

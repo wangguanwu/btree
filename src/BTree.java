@@ -350,37 +350,138 @@ public class BTree {
                 }
             }
         } else {// key isn't in current node
+            // case a :如果x.ci只有t-1个关键字，.ci的左右孩子中某一个节点数至少为t，可以将x.ci的某个关键字移动到
+            //x.ci中，孩子数至少为t的相邻兄弟节点必须将某个关键字移到x中，并把关键字的一个孩子节点移到x.ci中
             DiskValue dk = x.getNodeKey(i);
-            BTNode left = x.getChildItem(i) ,right = x.getChildItem(i+1);
-
-            if( x.getKeyCounts() == t-1 ){
-                BTNode mergeNode = left ,anotherChild = right ;
-                if(left.getKeyCounts() != t-1){
-                    if(right.getKeyCounts() == t-1){
-                        mergeNode = right;
-                        anotherChild = left ;
+            BTNode left = null ,right = null;
+            BTNode xci = x.getChildItem(i);
+            if(i > 0 ){
+                left = x.getChildItem(i-1);//x.ci的相邻左兄弟节点
+            }
+            if(i < x.getChildCounts()-1){
+                right = x.getChildItem(i+1);//x.ci的相邻右兄弟节点
+            }
+            if(  x.getChildItem(i).getKeyCounts() == t-1 ){//if x.ci only has t-1 key words
+                BTNode bigNode = left ,smallNode = right ;
+                if(left!=null&&left.getKeyCounts() != t-1){
+                    if(right!=null&&right.getKeyCounts() >= t){
+                        bigNode = right;
+                        smallNode= left ;
                     }else {
-                        mergeNode = null ;
-                        anotherChild = null ;
+                        bigNode= null ;
+                        smallNode= null ;
                     }
                 }
-                if( mergeNode!=null&&anotherChild.getKeyCounts()>=t){// brother node has at least t key words
-                    // movedown the x.ci to the  tail of the mergeNode
-                    mergeNode.n++;
-                    mergeNode.setChildNode();
+                if( bigNode!=null){// brother node has at least t key words
+                    // movedown a key of the x to  the x.ci
+                    xci.n++;
+                    if(bigNode == left){
+                        //增加xci的个数
+                        for(int q = xci.getKeyCounts() -1 ; q > 0 ; q--){
+                            DiskValue da =xci.getNodeKey(q-1);
+                            xci.setKeyNode(q , da);
+                        }
+                        //将x中的某个键移动到x.ci中
+                        DiskValue tempK = x.getNodeKey(i-1);
+                        xci.setKeyNode(0 , tempK);
+                        //将兄弟节点的某个键移动到x中
+                        x.setKeyNode(i-1  , bigNode.getNodeKey(bigNode.n-1));
+                        // 将兄弟节点的孩子指针移动到x.c(i)中
+                        xci.setChildNode(0 , bigNode.getChildItem(bigNode.n));
+                        bigNode.n -- ;
+                    }else{// 右兄弟节点的key个数至少是t
+                        //将x的某个键放在xci中，放在数组后面
+                        DiskValue tempK = x.getNodeKey(i);
+                        xci.setKeyNode(xci.n-1 ,tempK );
+                        //将右边兄弟孩子节点放到xci中
+                        xci.setChildNode( xci.n , bigNode.getChildItem(0));
+                        //将右边兄弟移到x中
+                        DiskValue ctk = bigNode.getNodeKey(0);
+                        x.setKeyNode(i , ctk);
+                        //调整bigNode
+                        for(int q = 0; q < bigNode.getKeyCounts()-1;q++){
+                            bigNode.setKeyNode(q,bigNode.getNodeKey(q+1));
+                            bigNode.setChildNode(q , bigNode.getChildItem(q+1));
+                        }
+                        bigNode.setChildNode(bigNode.n-1 , bigNode.getChildItem(bigNode.n));
+                        bigNode.n--;
+                    }
+                }else{ //case 3  所有相邻的兄弟节点只有t-1个键，合并两个兄弟节点，并且将x中的某个键移动到新的节点中
 
+
+                    if(left!=null&&right!=null&&left.getKeyCounts()==t-1 && right.getKeyCounts()==t-1){
+                        if (x.getChildCounts() == 1) {
+                            this.root = left ;
+                        }
+                        //merge the x.key(i) and left ,这是可以随意选择一个相邻兄弟节点合并的
+                        xci.n++;
+                        DiskValue moveDown = x.getNodeKey(i);
+                        if(x.getKeyCounts()>1){
+                            for(int q = i ; q < x.getKeyCounts()-1;q++){
+                                x.setKeyNode(q , x.getNodeKey(q+1));
+                                x.setChildNode(q , x.getChildItem(q+1));
+                            }
+                            x.setChildNode(x.n-1 , x.getChildItem(x.n));
+                        }
+                        xci.setKeyNode(xci.n -1 , moveDown);
+                        int indexOfChild = xci.n ;
+                        //merge the xci and the rightChild
+                        int indexOfKey = xci.n ;
+                        for(int f = 0 ; f < right.getKeyCounts() ;f++){
+                            xci.n++;
+                            xci.setKeyNode(indexOfKey ++, right.getNodeKey(f));
+                            xci.setChildNode(indexOfChild ++, right.getChildItem(f));
+                        }
+                        xci.setChildNode(xci.n ,right.getChildItem(right.n));
+
+
+                    }else {
+                        DiskValue dvd = x.getNodeKey(i);
+                        if (left != null && right == null && left.getKeyCounts() == t - 1) {
+                            //merge the left child and x's key
+                            if (x.getKeyCounts() == 1) {
+                                this.root = left;
+                            } else {
+                                arrayStepback(i, x);
+                            }
+                            left.n++;
+                            left.setKeyNode(left.n - 1, dvd);
+                            aAppendToB(xci, 0, left, left.n);
+                        } else if (left == null && right != null && right.getKeyCounts() == t - 1) {
+                            if(x.getKeyCounts() == 1){
+                                this.root =xci ;
+                            }else{
+                                arrayStepback(i , x );
+                            }
+                            xci.n++;
+                            xci.setKeyNode(xci.n-1 , dvd);
+                            aAppendToB(right , 0 , xci , xci.n);
+                        }
+                    }
                 }
-                //case a: x.ci just has t-1 key words ,but it's  child node(including left child and
-                // right child)  have at least t key words
-
                 if(x.getKeyCounts() == 1){// delete the root node becuase it just has only a key word
-                    this.root = left;
+                    this.root = xci ;
                 }
-            }else{
-                //case b:
             }
 
         }
+    }
+    static void arrayStepback(int index , BTNode btNode ){//将数组向前移动
+        for(int i = index ; i < btNode.getKeyCounts() -1 ;i++){
+            btNode.setKeyNode(i ,btNode.getNodeKey(i+1) );
+            btNode.setChildNode(i , btNode.getChildItem(i+1));
+        }
+        btNode.setChildNode(btNode.n-1 , btNode.getChildItem(btNode.n));
+        btNode.n -- ;
+
+    }
+    static void aAppendToB(BTNode source ,int startPos1 , BTNode dest ,int startPos2){
+        for(int i = startPos1 ,j = startPos2 ; i < source.getKeyCounts() ;i++,j++){
+            dest.n++;
+            dest.setKeyNode(j,source.getNodeKey(i));
+            dest.setChildNode(j,source.getChildItem(i));
+        }
+        dest.setChildNode(dest.n , source.getChildItem(source.n));
     }
 
     public void btreeDelete(int key) {

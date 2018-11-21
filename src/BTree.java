@@ -1,33 +1,33 @@
 class DiskValue implements Comparable<DiskValue> { //磁盘数据
-    private int key;
-    private int value;
+    private String key;
+    private String value;
 
     @Override
     public int compareTo(DiskValue o) {
-        return this.key - o.key;
+        return this.key.compareTo(o.key);
     }
 
     public DiskValue() {
     }
 
-    public DiskValue(int key, int value) {
+    public DiskValue(String key, String value) {
         this.key = key;
         this.value = value;
     }
 
-    public int getValue() {
+    public String getValue() {
         return value;
     }
 
-    public void setValue(int value) {
+    public void setValue(String value) {
         this.value = value;
     }
 
-    public int getKey() {
+    public String getKey() {
         return key;
     }
 
-    public void setKey(int key) {
+    public void setKey(String key) {
         this.key = key;
     }
 
@@ -48,6 +48,12 @@ class BTNode implements Comparable<BTNode> {
     private BTNode parent;//父母节点
     private BTNode[] childNodesPtr; //子节点
     private boolean isLeaf;//是否是叶子节点
+    public void update(){
+        for(int j = n ; j < this.keyNodes.length ; j++){
+            this.keyNodes[j] = null;
+            this.childNodesPtr[j+1] = null ;
+        }
+    }
 
 
     public DiskValue[] getKeyNodes() {
@@ -144,7 +150,7 @@ class BTNode implements Comparable<BTNode> {
     }
 
     public void setChildNode(int index, BTNode node) {
-        if (index < n) {
+        if (index < this.getChildCounts()) {
             this.childNodesPtr[index] = node;
         } else {
             throw new IllegalArgumentException();
@@ -156,7 +162,7 @@ class BTNode implements Comparable<BTNode> {
 
         if (o.n > 0) {
             if (this.n > 0) {
-                return this.keyNodes[0].getKey() - o.keyNodes[o.n - 1].getKey();
+                return this.keyNodes[0].getKey().compareTo(o.keyNodes[o.n - 1].getKey());
             }
         } else {
             return 1;
@@ -180,29 +186,41 @@ public class BTree {
         BTreeCreate(2);
     }
 
+
     public void btreeSplitChild(BTNode x, int i) {
         BTNode z = new BTNode(t);
-        z.setLeaf(false);
-        BTNode y = x.getChildItem(i); //找到x节点第i+1个孩子指针
-        z.n = t - 1; //修改z的孩子个数
+        BTNode y = x.getChildItem(i); //找到x节点第i个孩子指针
+        z.setLeaf(y.isLeaf());
+        DiskValue dk = y.getNodeKey(t-1);
+
+        z.n = t-1 ;
+        // z.key(j) = x.key(j+t)
         for (int j = 0; j < t - 1; j++) {
-            z.addKey(y.getNodeKey(j));
+            z.setKeyNode(j , y.getNodeKey(j+t));
         }
+        // z.c(j) = x.c(j+t)
         if (y.isLeaf() == false) {
             for (int j = 0; j < t; j++) {
                 z.addChild(y.getChildItem(j + t));
             }
         }
         y.n = t - 1;
-        for (int j = x.n; j > i + 1; j--) {
+        //x增加一个key节点，1个child节点
+        x.n++;
+        //将x.c(i)和x.c(i+1)向后移
+        for (int j = x.n; j > i+1 ; j--) {
             x.setChildNode(j, x.getChildItem(j - 1));
         }
-        x.setChildNode(i, z);
+        //将孩子节点z插入到x中
+        // x.c(i+1) = z ;
+        x.setChildNode(i+1, z);
+        // 将x.key(i)和后面的键向后移动
         for (int j = x.n - 1; j > i; j--) {
             x.setKeyNode(j, x.getNodeKey(j - 1));
         }
-        x.setKeyNode(i, y.getNodeKey(i));
-        x.n++;
+        // 将孩子节点y的键y.key(t)插入到x.key(i)中
+        x.setKeyNode(i,dk);
+        y.update();
     }
 
     private BTree() {
@@ -215,7 +233,9 @@ public class BTree {
             BTNode btNode = new BTNode(this.t);
             this.root = btNode;
             this.root.setLeaf(false);
-            this.root.setChildNode(0, r);
+            this.root.n++;// 增加节点的key个数
+            this.root.setChildNode(0, r); //新的根节点指向原来的节点
+            this.root.n--;
             this.btreeSplitChild(this.root, 0);//根节点没有父母节点，但是可以假定根节点默认是父母节点的下标为0的
             // 满子节点
             this.btreeInsertNonfull(this.root, k);
@@ -227,35 +247,36 @@ public class BTree {
     public void btreeInsertNonfull(BTNode x, DiskValue k) {//将关键字插入,核心部分
         int i = x.n - 1;
         if (x.isLeaf()) {
-            while (i >= 0 && k.getKey() < x.getNodeKey(i).getKey()) { // x.key(i+1) < x.key(i)
-                x.setKeyNode(i, x.getNodeKey(i - 1));
+            x.n++;
+            while (i >=0 && k.getKey().compareTo(x.getNodeKey(i).getKey())<0) { // x.key(i+1) < x.key(i)
+                x.setKeyNode(i+1, x.getNodeKey(i ));
                 i--;
             }
             x.setKeyNode(i + 1, k);
-            x.n++;
         } else {
-            while (i >= 0 && k.getKey() < x.getNodeKey(i).getKey()) {
+            while (i >= 0 && k.getKey().compareTo( x.getNodeKey(i).getKey())<0) {
                 i--;
             }
             i = i + 1;
-            if (x.getChildItem(i).getChildCounts() == 2 * t - 1) {
+            if (x.getChildItem(i).getKeyCounts() == 2 * t - 1) {
                 this.btreeSplitChild(x, i);
                 if (k.compareTo(x.getNodeKey(i)) > 0) {//经过分裂，x.key(i)是新移上来的值，需要与key及进行比较，
                     // 确定向哪个子树下移
                     i = i + 1;
                 }
-                btreeInsertNonfull(x.getChildItem(i), k); //尾递归,可以通过while循环实现
             }
+            btreeInsertNonfull(x.getChildItem(i), k); //尾递归,可以通过while循环实现
+
         }
 
     }
 
-    public DiskValue btreeSearch(BTNode x, int k) { // b树查找，可以看到时间复杂度非常低O(tlogt(h))
+    public DiskValue btreeSearch(BTNode x, String k) { // b树查找，可以看到时间复杂度非常低O(tlogt(h))
         int i = 0;
-        while (i < x.n && k > x.getNodeKey(i).getKey()) {
+        while (i < x.n && k.compareTo( x.getNodeKey(i).getKey())> 0) {
             i++;
         }
-        if (i < x.n && k == x.getNodeKey(i).getKey()) {
+        if (i < x.n && k.equals(x.getNodeKey(i).getKey())) {
             return x.getNodeKey(i);
         } else {
             if (x.isLeaf()) {
@@ -267,32 +288,35 @@ public class BTree {
         return null;
     }
 
-    public static BTree getInstance() {
+    public static BTree getInstance(int ...t) {
         BTree tree = new BTree();
-        tree.BTreeCreate(4);
+        int num = 4 ;
+        if(t.length>0){
+            num = t[0] ;
+        }
+        tree.BTreeCreate(num);
         return tree;
     }
 
-    public void btreeDelete(BTNode x, int key) {
+    public void btreeDelete(BTNode x, String key) {
 
         // if the key is in current node
         int i;
-        if (x.getKeyCounts() < t) {
-            throw new IllegalStateException("节点的关键字个数至少为t");
-        }
+
         for (i = 0; i < x.getKeyCounts(); i++) { //to-do可以用二分法查找
             DiskValue bt = x.getNodeKey(i);
-            if (bt.getKey() == key || bt.getKey() > key ) {
+            if (bt.getKey() == key || bt.getKey().compareTo(key)>0) {
 
                 break;
             }
         }
-        if (i < x.getKeyCounts() && key ==x.getNodeKey(i).getKey() ) { // key is in current node
+        if (i < x.getKeyCounts() && key.equals(x.getNodeKey(i).getKey()) ) { // key is in current node
             if (x.isLeaf()) { // if current node is leaf ,we can delete the node directly
                 for (int j = i; j < x.getKeyCounts() - 1; j++) {
                     x.setKeyNode(j, x.getNodeKey(j + 1));//x.key(i) = x.key(i+1);
                 }
                 x.n--;
+                x.update();
             } else {
                 BTNode previousNode = x.getChildItem(i);//Child node in front of the K node
                 if (previousNode.getKeyCounts() >= t) { // previous node contains at least three keywords
@@ -318,31 +342,33 @@ public class BTree {
                             x.setKeyNode(i, x.getNodeKey(i + 1));
                         }
                         // ajust  the childnode pointer in the x node
-                        for (int q = i; q < x.getChildCounts() - 1; q++) {
-                            x.setChildNode(i, x.getChildItem(i + 1));
+                        for (int q = i+1; q < x.getChildCounts() - 1; q++) {
+                            x.setChildNode(q, x.getChildItem(q + 1));
                         }
                         // update the size of the x node
                         x.n--;
+                        x.update();
                         // current index of the y node
                         int curIndex = previousNode.n;
                         // update the size of the y node
                         previousNode.n++ ;
                         //apend the k  to be deleted  to the tail of the y node
                         previousNode.setKeyNode(curIndex, keyToDelete);
-                        // calculate the size of the y node (= previous node )
-                        int nLength = previousNode.getKeyCounts() + postNode.getKeyCounts()+1;
+                        // calculate the size of the y key node (= previous node )
+                        int nLength = previousNode.getKeyCounts() + postNode.getKeyCounts();
                         //merge the key of the postnode into the previousNode
+                        //childIndex is the index of the last child node
                         int childIndex = previousNode.getChildCounts() -1 ;
 
                         // merge the y (left child) node and the z node (right child or named postNode)
-                        for (int k = previousNode.getKeyCounts()-1, pindex = 0; k < nLength; k++, pindex++) {
+                        for (int k = previousNode.getKeyCounts(), pindex = 0; k < nLength; k++, pindex++) {
                             previousNode.n++ ;
                             previousNode.setKeyNode(k, postNode.getNodeKey(pindex));
                         }
                         //merge the childnode of postnode into the previousNode
 
                         for(int q = childIndex ,z = 0 ; z< postNode.getChildCounts() ; z++){
-                                previousNode.setChildNode(q , postNode.getChildItem(z));
+                                previousNode.setChildNode(q++ , postNode.getChildItem(z));
                         }
                         //recursively delete the key node in childnode previouseNode
                         btreeDelete( previousNode , key);
@@ -352,6 +378,9 @@ public class BTree {
         } else {// key isn't in current node
             // case a :如果x.ci只有t-1个关键字，.ci的左右孩子中某一个节点数至少为t，可以将x.ci的某个关键字移动到
             //x.ci中，孩子数至少为t的相邻兄弟节点必须将某个关键字移到x中，并把关键字的一个孩子节点移到x.ci中
+            if(x.isLeaf()){
+                return ;
+            }
             DiskValue dk = x.getNodeKey(i);
             BTNode left = null ,right = null;
             BTNode xci = x.getChildItem(i);
@@ -361,15 +390,28 @@ public class BTree {
             if(i < x.getChildCounts()-1){
                 right = x.getChildItem(i+1);//x.ci的相邻右兄弟节点
             }
-            if(  x.getChildItem(i).getKeyCounts() == t-1 ){//if x.ci only has t-1 key words
+            if(  xci.getKeyCounts() == t-1 ){//if x.ci only has t-1 key words
                 BTNode bigNode = left ,smallNode = right ;
-                if(left!=null&&left.getKeyCounts() != t-1){
-                    if(right!=null&&right.getKeyCounts() >= t){
+                if(left!=null&&right!=null){
+                    if(left.getKeyCounts()>=t){
+                        bigNode = left;
+                    }else if(right.getKeyCounts() >= t){
                         bigNode = right;
-                        smallNode= left ;
                     }else {
                         bigNode= null ;
-                        smallNode= null ;
+                    }
+                }else if(left!=null){
+                    if(left.getKeyCounts()>=t){
+                        bigNode =left;
+                    }else{
+                        bigNode = null;
+                    }
+
+                }else if(left == null){
+                    if(right.getKeyCounts()>=t){
+                        bigNode = right ;
+                    }else{
+                        bigNode =null;
                     }
                 }
                 if( bigNode!=null){// brother node has at least t key words
@@ -405,9 +447,11 @@ public class BTree {
                         }
                         bigNode.setChildNode(bigNode.n-1 , bigNode.getChildItem(bigNode.n));
                         bigNode.n--;
+                        bigNode.update();
                     }
-                }else{ //case 3  所有相邻的兄弟节点只有t-1个键，合并两个兄弟节点，并且将x中的某个键移动到新的节点中
-
+                    this.btreeDelete(xci , key);
+                }
+                else{ //case 3  所有相邻的兄弟节点只有t-1个键，合并两个兄弟节点，并且将x中的某个键移动到新的节点中
 
                     if(left!=null&&right!=null&&left.getKeyCounts()==t-1 && right.getKeyCounts()==t-1){
                         if (x.getChildCounts() == 1) {
@@ -433,8 +477,6 @@ public class BTree {
                             xci.setChildNode(indexOfChild ++, right.getChildItem(f));
                         }
                         xci.setChildNode(xci.n ,right.getChildItem(right.n));
-
-
                     }else {
                         DiskValue dvd = x.getNodeKey(i);
                         if (left != null && right == null && left.getKeyCounts() == t - 1) {
@@ -462,6 +504,9 @@ public class BTree {
                 if(x.getKeyCounts() == 1){// delete the root node becuase it just has only a key word
                     this.root = xci ;
                 }
+                this.btreeDelete(xci , key);
+            }else{
+                this.btreeDelete(x.getChildItem(i) ,key);
             }
 
         }
@@ -484,10 +529,7 @@ public class BTree {
         dest.setChildNode(dest.n , source.getChildItem(source.n));
     }
 
-    public void btreeDelete(int key) {
-        this.btreeDelete(this.root, key);
 
-    }
 
     public void traverse(BTNode x) { // 遍历b树
         int i = 0;
@@ -499,19 +541,76 @@ public class BTree {
         if (x.isLeaf()) {
             return;
         }
-        for (int j = 0; j < x.n; j++) {
+        for (int j = 0; j < x.getChildCounts(); j++) {
             traverse(x.getChildItem(j));
         }
+    }
+    public void init(String p[],String childs[][]){
+        this.init(root , p, childs);
+    }
+    private void init (BTNode root ,String p[] , String childs[][]){
+        if(p==null||p.length==0|| childs==null||childs.length==0){
+            return ;
+        }
+        for(int i = 0 ; i < p.length ;i++){
+            root.n++;
+            root.setKeyNode(i , new DiskValue(p[i],p[i]));
+        }
+        root.setLeaf(false);
+        for(int i = 0 ; i < childs.length ; i++){
+            String [] item = childs[i];
+            BTNode node = new BTNode(t);
+            for(int j = 0 ; j< item.length ;j++ ){
+                node.n++;
+                node.setKeyNode(j , new DiskValue(item[j],item[j]));
+
+            }
+            root.setChildNode(i , node);
+
+        }
+        System.out.println("init sucessfully!");
+
     }
 
     public void traverse() {
         this.traverse(this.root);
     }
-
+    public boolean btreeDelete(String k){
+        try{
+            this.btreeDelete(this.root , k);
+        }catch (Exception e){
+            return false;
+        }
+        return true ;
+    }
     public static void main(String args[]) {
-        BTree bTree = BTree.getInstance();
-        bTree.btreeInsert(new DiskValue(10, 10));
-        bTree.btreeInsert(new DiskValue(20, 20));
+//        String target[] = {"A","D","F","H","L","N","P","G","B","C","E"};
+//        BTree bTree = BTree.getInstance(3);
+//
+//        for(String e : target){
+//            bTree.btreeInsert(new DiskValue(e,e));
+//        }
+        BTree bTree = BTree.getInstance(3);
+        String roots[] = {"G","M","P","X"};
+        String childs[][] = {
+                {"A","C","D","E"},
+                {"J","K"},
+                {"N","O"},
+                {"R","S","T","U","V"},
+                {"Y","Z"}
+        };
+        bTree.init(roots, childs);
+        bTree.btreeInsert(new DiskValue("B","B"));
+        bTree.btreeInsert(new DiskValue("Q","Q"));
+        bTree.btreeInsert(new DiskValue("L","L"));
+        bTree.btreeInsert(new DiskValue("F","F"));
+        bTree.btreeDelete("F");
+        bTree.btreeDelete("M");
+        bTree.btreeDelete("G");
+        bTree.btreeDelete("D");
+        bTree.btreeDelete("B");
+
+
         bTree.traverse();
 
     }
